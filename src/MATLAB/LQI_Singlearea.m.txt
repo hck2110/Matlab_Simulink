@@ -1,0 +1,39 @@
+
+Kp=120;
+Tp=20;
+Tt=0.5;
+Tg=0.4;
+R=3;
+%system matrices%
+A=[-1/Tp Kp/Tp 0 0;0 -1/Tt 1/Tt 0;-1/(R*Tg) 0 -1/Tg 0;-1 0 0 0]
+eig(A);
+B=[0;0;1/Tg;0]
+I=eye(4,4);
+Tau=[-Kp/Tp;0;0;0];
+delt=10^-3;
+Ad=I+A*delt
+Bd=B*delt
+Taud=Tau*delt
+delp=0.01;
+x0=[0;0;0;0]
+ki=0.1;
+k=0;
+t=0;
+while t<50
+    k=k+1;
+    u=0;
+    x(:,k)=Ad*x0+Bd*u+Taud*delp;
+    t=t+delt;
+     t_str(k)=t;
+     x0=x(:,k);
+end
+plot(t_str,50+x(1,:))
+xlabel('Time(s)')
+ylabel('Frequency(Hz)')
+     
+% ctrb(A,B);
+% Co=ctrb(A,B)
+% unco=length(A)-rank(Co)
+% Q=[1 0 0 0;0 0 0 0;0 0 0 0;0 0 0 0];
+% R=10^-6;
+% [K,S,P]=lqr(A,B,Q,R)

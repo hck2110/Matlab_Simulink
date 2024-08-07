@@ -1,0 +1,344 @@
+clear all;
+clc;
+costdata = [136.9125 10.04025 0.006085 30 750; %slack
+    59.1550 9.760576 0.005915 100 300]; %PV
+    %328.1250 8.6625 0.005250 50 250];
+%Pd=160;
+Ng=length(costdata(:,1));
+for i=1:Ng
+    a(i)=costdata(i,1);
+    beta(i)=costdata(i,2);
+    c(i)=costdata(i,3);
+    Pgmin(i)=costdata(i,4);
+    Pgmax(i)=costdata(i,5);
+end
+
+for i=1:Ng
+    fun=beta(i)+2*c(i)*Pgmin(i);
+end
+
+lamda=min(fun)
+r=0;
+for i=1:Ng %% Loseless 
+      den=2*c(i);
+      Pg(i)=(lamda-beta(i))/den;
+if  Pg(i)>Pgmax(i)
+    Pg(i)=Pgmax(i);
+end
+ if Pg(i)<Pgmin(i)
+    Pg(i)=Pgmin(i);
+ end
+ r=r+(1/den);
+end
+disp(Pg);
+
+temp=size(Pg);
+n=temp(1,2);
+clear temp;
+
+%%%%% system data %%%%%
+%%% line no.| fb| tb | r (pu)| x(pu)| g (pu) | b (pu)| t|
+linedata=[1 1 2 0.01008 0.05040 0 0.05125 1
+    2 1 3 0.00744 0.03720 0 0.03875 1
+    3 2 4 0.00744 0.03720 0 0.03875 1
+    4 3 4 0.01272 0.06360 0 0.06375 1];
+%% bn |g (pu)| b(pu)|
+scdata=[1 0 0
+    2 0 0
+    3 0 0
+    4 0 0];
+%% busno | type | pg (MW) | qg (MVAR)| pl (MW)| ql (MVAR)|vm| qgmin (MVAR)| qgmax (MVAR)|
+busdata=[1 1 0 0 100 30.99 1 -inf inf 
+    2 3 0 0 220 105.35 1 -inf inf
+    3 3 0 0 250 123.94 1 -inf inf
+    4 2 318 0 130 49.50 1.02 -inf inf
+    ];
+    Pd=sum(busdata(:,5));
+Sb=100; %%% MVA Base of the system %%%%
+%%% type=1=> slack; type=2=> pv; type=3=> pq%%%su
+temp=size(linedata);
+nl=temp(1,1); %no. of lines
+clear temp;
+
+temp=size(busdata);
+nb=temp(1,1); %no. of bus
+clear temp;
+j=1;
+for ii=1:1:nb
+    if busdata(ii,2)==1 || busdata(ii,2)==2
+       busdata(ii,3)=Pg(j);
+       j=j+1;
+    end
+end
+for i=1:nb
+    %Pg(i)=busdata(i,3);
+    type(i)=busdata(i,2);
+end
+%%%%%%%%% system data ends here %%%%%%%
+
+%%%% Y-BUS FORMATION %%%%
+ybus=zeros(nb,nb);
+for l=1:1:nl
+    se=linedata(l,2); %fb
+    re=linedata(l,3); %tb
+    z=complex(linedata(l,4),linedata(l,5));
+    yse=1/z;
+    ysh=complex(linedata(l,6),linedata(l,7));
+    t=linedata(l,8);
+    ybus(se,se)=ybus(se,se)+t^2*yse+ysh;
+    ybus(re,re)=ybus(re,re)+yse+ysh;
+    ybus(se,re)=ybus(se,re)-t*yse;
+    ybus(re,se)=ybus(re,se)-t*yse;
+end
+
+for ii=1:1:nb
+    ysc=complex(scdata(ii,2),scdata(ii,3));
+    ybus(ii,ii)=ybus(ii,ii)+ysc;
+end
+
+
+g=real(ybus);
+b=imag(ybus);
+
+% SET THE INITIAL CONDITIONS
+for ii=1:1:nb
+    mv(ii)=busdata(ii,7);
+    th(ii)=0;
+    typechange(ii)=0;  %% 0=> no conversion%%%
+end
+
+tol=1; eps=0.0001;Pe=2;
+iter=1;itermax=50;converge=0;it=0;
+while (converge==0)  && (iter<=itermax) 
+    %%%% NEWTON-RAPHSON LOOP SHOULD START FROM HERE %%%%%
+while (tol>eps)  
+    for ii=1:1:nb
+        temp1=0;
+        temp2=0;
+        for jj=1:1:nb
+            temp1=temp1+mv(ii)*mv(jj)*(g(ii,jj)*cos(th(ii)-th(jj))+b(ii,jj)*sin(th(ii)-th(jj)));
+            temp2=temp2+mv(ii)*mv(jj)*(g(ii,jj)*sin(th(ii)-th(jj))-b(ii,jj)*cos(th(ii)-th(jj)));
+        end
+        pcal(ii)=temp1;
+        qcal(ii)=temp2;
+    end
+    clear temp1;
+    clear temp2;
+    %%% switching between pv and pq buses %%%%
+    for ii=1:1:nb
+        type(ii)=busdata(ii,2); % type(1)=1, type(2)=3,type(3)=3,type(4)=2
+        if type(ii)==2 || typechange(ii)==1
+            qg(ii)=qcal(ii)+busdata(ii,6)/Sb;
+            if qg(ii)>(busdata(ii,9)/Sb)
+                qg(ii)=busdata(ii,9)/Sb;
+                type(ii)=3;
+                typechange(ii)=1;
+            end
+            if qg(ii)<(busdata(ii,8)/Sb)
+                qg(ii)=busdata(ii,8)/Sb;
+                type(ii)=3;
+                typechange(ii)=1;
+            end
+        end
+    end
+%calculation for no. of pv buses
+    npv=0;
+    for ii=1:1:nb
+        if type(ii)==2
+            npv=npv+1;
+        end
+    end
+
+    %%%%% Calculate the specified active and reactive power %%%%
+    for ii=1:1:nb
+        psp(ii)=(busdata(ii,3)-busdata(ii,5))/Sb;
+        qsp(ii)=(busdata(ii,4)-busdata(ii,6))/Sb;
+    end
+
+    %%%% formation of jacobian elements%%%
+    II=0;
+    J11=zeros(nb-1,nb-1);
+    for ii=1:1:nb
+        if type(ii)~=1 % type(1)=1, type(2)=3,type(3)=3,type(4)=2
+            II=II+1;
+            JJ=0;
+            for jj=1:1:nb     %% jj= bus no. 
+                if type(jj)~=1 % type(1)=1, type(2)=3,type(3)=3,type(4)=2
+                    JJ=JJ+1;
+                    if ii~=jj
+                        J11(II,JJ)=mv(ii)*mv(jj)*(g(ii,jj)*sin(th(ii)-th(jj))-b(ii,jj)*cos(th(ii)-th(jj)));
+                    end
+                    if ii==jj
+                        J11(II,JJ)=-qcal(ii)-b(ii,ii)*mv(ii)^2;
+                    end
+                end
+            end
+        end
+    end
+
+    J12=zeros(nb-1,nb-1-npv);
+    II=0;
+    for ii=1:1:nb
+        if type(ii)~=1 % type(1)=1, type(2)=3,type(3)=3,type(4)=2
+            II=II+1;
+            JJ=0;
+            for jj=1:1:nb
+                if type(jj)==3 % type(1)=1, type(2)=3,type(3)=3,type(4)=2
+                    JJ=JJ+1;
+                    if ii~=jj
+                        J12(II,JJ)=mv(ii)*mv(jj)*(g(ii,jj)*cos(th(ii)-th(jj))+b(ii,jj)*sin(th(ii)-th(jj)));
+                    else
+                        J12(II,JJ)=pcal(ii)+mv(ii)^2*g(ii,ii);
+                    end
+                end
+            end
+        end
+    end
+
+    J21=zeros(nb-1-npv,nb-1);
+    II=0;
+    for ii=1:1:nb
+        if type(ii)==3 %PQ bus % type(1)=1, type(2)=3,type(3)=3,type(4)=2
+            II=II+1;
+            JJ=0;
+            for jj=1:1:nb
+                if type(jj)~=1 %PQ+PV
+                    JJ=JJ+1;
+                    if ii~=jj
+                        J21(II,JJ)=-mv(ii)*mv(jj)*(g(ii,jj)*cos(th(ii)-th(jj))+b(ii,jj)*sin(th(ii)-th(jj)));
+                    else
+                        J21(II,JJ)=pcal(ii)-g(ii,ii)*mv(ii)^2;
+                    end
+                end
+            end
+        end
+    end
+
+    J22=zeros(nb-1-npv,nb-1-npv);
+    II=0;
+
+    for ii=1:1:nb
+        if type(ii)==3
+            II=II+1;
+            JJ=0;
+            for jj=1:1:nb
+                if type(jj)==3
+                    JJ=JJ+1;
+                    if ii~=jj
+                        J22(II,JJ)=mv(ii)*mv(jj)*(g(ii,jj)*sin(th(ii)-th(jj))-b(ii,jj)*cos(th(ii)-th(jj)));
+                    else
+                        J22(II,JJ)=qcal(ii)-b(ii,ii)*mv(ii)^2;
+                    end
+                end
+            end
+        end
+    end
+    J=[J11 J12
+        J21 J22];
+% 
+    II=0;
+    JJ=0;
+    pmis=zeros(nb-1,1);
+    qmis=zeros(nb-1-npv,1);
+    for ii=1:1:nb
+        if type(ii)~=1
+            II=II+1;
+            pmis(II,1)=pcal(ii)-psp(ii);
+        end
+        if type(ii)==3
+            JJ=JJ+1;
+            qmis(JJ,1)=qcal(ii)-qsp(ii);
+        end
+    end
+    pqmis=[pmis
+        qmis];
+    upd=inv(J)*(-pqmis); %5*1 matrix form
+    
+% 
+    temp=size(upd); %temp= [5 1]
+    nt=temp(1,1); %nt=5
+    clear temp;
+    II=0;
+    for ii=1:1:nb
+        if type(ii)~=1
+            II=II+1;
+            delth(ii)=upd(II,1);
+            th(ii)=th(ii)+delth(ii);
+        end
+    end
+    for ii=1:1:nb
+        if type(ii)==3
+            II=II+1;
+            delmv(ii)=upd(II,1)*mv(ii);
+            mv(ii)=mv(ii)+delmv(ii);
+        end
+    end
+    tol=max(abs(pqmis));
+    
+end
+fprintf('---------------------------------------------------------------------------------\n')
+fprintf(' bn      mv (pu)      th (deg)      PG(MW)      QG(MW)    PL(MW)    QL(MW) \n')
+fprintf('---------------------------------------------------------------------------------\n')
+[busdata(:,1) transpose(mv) transpose(th*180/pi) transpose(Sb*pcal)+busdata(:,5) transpose(Sb*qcal)+busdata(:,6) busdata(:,5) busdata(:,6)]
+fprintf('---------------------------------------------------------------------------------\n')
+Ploss=sum(ans(:,4))-sum(ans(:,6))
+     II=1;
+ii=1;
+    X=zeros(1,nb-1);
+            JJ=0;
+            for jj=1:1:nb
+                if type(jj)~=1
+                    JJ=JJ+1;
+                        X(II,JJ)=mv(ii)*mv(jj)*(g(ii,jj)*sin(th(ii)-th(jj))-b(ii,jj)*cos(th(ii)-th(jj)));
+                    end
+            end
+      Y=zeros(1,nb-1-npv);
+         II=1;
+         ii=1;
+            JJ=0;
+            for jj=1:1:nb
+                if type(jj)==3
+                    JJ=JJ+1;
+                        Y(II,JJ)=mv(ii)*(g(ii,jj)*cos(th(ii)-th(jj))+b(ii,jj)*sin(th(ii)-th(jj)));
+                    end
+            end
+                
+    Z=[X Y]';
+    alpbeta=(inv(J))'*Z;       
+    x=nb-1;
+    for i=1:x 
+      alp(i)=[alpbeta(i)];
+      L(i)=1/(-alp(i));
+    end
+            % alp for slack bus=0
+            % L for slack bus=1
+            %alpnew=[-1 alp(1,3)];
+            Pg=zeros(1,Ng);
+for i=1:Ng
+    if type(i)==1
+        Pg=(lamda-beta(i))/(2*c(i));
+    else
+        Pg(i)=(-lamda*alp(1,3)-beta(i))/(2*c(i));
+    end
+                if  Pg(i)>Pgmax(i)
+                   Pg(i)=Pgmax(i);
+                end
+              if Pg(i)<Pgmin(i)
+                 Pg(i)=Pgmin(i);
+              end
+            end
+            error=(Pd-Ploss-sum(Pg));
+            Pe=abs(error)
+            del_lamda=error/r;
+            lamda=lamda+del_lamda;
+            j=1;
+            for i=1:nb
+                if (type(i)==1) || (type(i)==2)
+               busdata(i,3)=Pg(j);
+                  j=j+1;
+                end  
+            end
+            iter=iter+1
+end
+      disp('Pg =')            
+     disp(Pg)

@@ -1,0 +1,100 @@
+clear all;
+clc;
+Kp1=100;
+Kp2=Kp1;
+Tp1=20;
+Tp2=Tp1;
+Tt1=0.5;
+Tt2=Tt1;
+Tt3=Tt1;
+Tt4=Tt1;
+Tg1=0.4;
+Tg2=Tg1;
+Tg3=Tg1;
+Tg4=Tg1;
+R1=3;
+R2=R1;
+R3=R1;
+R4=R1;
+Ki1=0.09;
+Ki2=0.09;
+d1=1/Kp1;
+d2=d1;
+b1=d1+1/R1;
+b2=b1;
+a12=1;
+T12=0.0079;
+y11=0.5;  % y is alpha here
+y12=0.5;
+y21=0.5;
+y22=0.5;
+c11=0.5;
+c12=0.5;
+c13=0.1;
+c14=0.1;
+c21=0.5;
+c22=0.5;
+c23=0;
+c24=0.8;
+c31=0;
+c32=0;
+c33=0.8;
+c34=0;
+c41=0;
+c42=0;
+c43=0.1;
+c44=0.1;
+delP=[0.04;0.04;0.04;0;0.04;0]
+A=[-1/Tp1 Kp1/Tp1 0 Kp1/Tp1 0 0 0 0 0 0 -Kp1/Tp1 0 0;
+    0 -1/Tt1 1/Tt1 0 0 0 0 0 0 0 0 0 0;
+    -1/(R1*Tg1) 0 -1/Tg1 0 0 0 0 0 0 0 0 y11/Tg1 0;
+    0 0 0 -1/Tt2 1/Tt2 0 0 0 0 0 0 0 0;
+    -1/(R2*Tg2) 0 0 0 -1/Tg2 0 0 0 0 0 0 y12/Tg2 0;
+    0 0 0 0 0 -1/Tp2 Kp2/Tp2 0 Kp2/Tp2 0 Kp2/Tp2 0 0;
+    0 0 0 0 0 0 -1/Tt3 1/Tt3 0 0 0 0 0;
+    0 0 0 0 0 -1/(R3*Tg3) 0 -1/Tg3 0 0 0 0 y21/Tg3;
+    0 0 0 0 0 0 0 0 -1/Tt4 1/Tt4 0 0 0;
+    0 0 0 0 0 -1/(R4*Tg4) 0 0 0 -1/Tg4 0 0 y22/Tg4;
+    2*3.14*T12 0 0 0 0 -(2*3.14*T12) 0 0 0 0 0 0 0;
+    -b1*Ki1 0 0 0 0 0 0 0 0 0 Ki1 0 0;
+    0 0 0 0 0 -Ki2*b2 0 0 0 0 -Ki2 0 0];
+%B=[0 0;0 0;0 0;0 0;0 0;0 0;0 0;0 0;0 0;0 0;0 0;Ki1 0;0 Ki2];
+Tau=[-Kp1/Tp1 -Kp1/Tp1 0 0 -Kp1/Tp1 0;
+    0 0 0 0 0 0;
+    c11/Tg1 c12/Tg1 c13/Tg1 c14/Tg1 0 0;
+    0 0 0 0 0 0;
+    c21/Tg2 c22/Tg2 c23/Tg2 c24/Tg2 0 0 ;
+    0 0 -Kp2/Tp2 -Kp2/Tp2 0 -Kp2/Tp2;
+    0 0 0 0 0 0;
+    c31/Tg3 c32/Tg3 c33/Tg3 c34/Tg3 0 0;
+    0 0 0 0 0 0;
+    c41/Tg4 c42/Tg4 c43/Tg4 c44/Tg4 0 0;
+    0 0 0 0 0 0;
+    Ki1*(c31+c41) Ki1*(c32+c42) -Ki1*(c13+c23) -Ki1*(c14+c24) 0 0;
+    -Ki2*(c31+c41) -Ki2*(c32+c42) Ki2*(c13+c23) Ki2*(c14+c24) 0 0];
+% C=[1 0 0 0 0 0 0 0 0 0 0 0 0];
+% D=0;
+eig(A)
+det(A)
+ I=eye(13,13);
+delt=10^-3;
+% Ad=expm(A*delt);
+% Bd=inv(A)*(Ad-I)*B;
+% Taud=inv(A)*(Ad-I)*Tau;
+% sysc=ss(A,B,C,D);
+% sysd=c2d(sysc,delt);
+Ad=I+A*delt; %for approximate discretization
+ %Bd=B*delt;
+ Taud=Tau*delt;
+x0=[0;0;0;0;0;0;0;0;0;0;0;0;0]
+k=0;
+t=0;
+while t<150
+    k=k+1;
+    x(:,k)=Ad*x0+Taud*delP;
+    t=t+delt;
+    t_str(k)=t;
+    x0=x(:,k);
+end
+plot(t_str,50+x(1,:))
+

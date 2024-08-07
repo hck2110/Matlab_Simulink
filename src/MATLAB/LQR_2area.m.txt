@@ -1,0 +1,66 @@
+clear all;
+clc;
+Kp1=100;
+Tp1=20;
+Tt1=0.5;
+Tg1=0.4;
+R1=3;
+Kp2=100;
+Tp2=20;
+Tt2=0.5;
+Tg2=0.4;
+R2=3;
+d1=1/Kp1;
+d2=1/Kp2;
+b1=1;
+b2=b1;
+a12=0.2;
+T12=0.0079;
+A=[-1/Tp1 Kp1/Tp1 0 0 0 0 -Kp1/Tp1
+    0 -1/Tt1 1/Tt1 0 0 0 0 
+    -1/(R1*Tg1) 0 -1/Tg1 0 0 0 0 
+    0 0 0 -1/Tp2 Kp2/Tp2 0 (a12*Kp2)/Tp2
+    0 0 0 0 -1/Tt2 1/Tt2 0  
+    0 0 0 -1/(R2*Tg2) 0 -1/Tg2 0
+    2*3.14*T12 0 0 -2*3.14*T12 0 0 0];
+eig(A);
+B=[0 0;0 0;1/Tg1 0;0 0;0 0;0 1/Tg2;0 0];
+ Tau=[-Kp1/Tp1 0;0 0;0 0;0 -Kp2/Tp2;0 0;0 0;0 0];
+   I=eye(7,7);
+   delt=1*10^-3;
+   inv(A);
+   Ad=expm(A*delt);
+   Bd=inv(A)*(Ad-I)*B;
+   Taud=inv(A)*(Ad-I)*Tau;
+   C=[1 0 0 0 0 0 0];
+   D=0;
+   sysc=ss(A,B,C,D);
+   sysd=c2d(sysc,delt);
+   delp=[0.01;0]
+   x0=[0;0;0;0;0;0;0]
+   k=0;
+   t=0;
+   Q=[(1+b1^2) 0 0 0 0 0 b1;
+    0 0 0 0 0 0 0;
+    0 0 0 0 0 0 0;
+    0 0 0 (1+b2^2) 0 0 -b2*a12;
+    0 0 0 0 0 0 0;
+    0 0 0 0 0 0 0;
+    b1 0 0 -b2*a12 0 0 (1+a12^2)];
+  R=[1 0;0 1];
+  [K,S,P] = lqr(A,B,Q,R)
+  while t<150
+      k=k+1;
+      u=(-K*x0);
+      x(:,k)=Ad*x0+Bd*u+Taud*delp;
+      t=t+delt;
+      t_str(k)=t;
+      x0=x(:,k);
+  end
+  plot(t_str,50+x(1,:))
+  hold on
+ plot(t_str,50+x(4,:))
+  %plot(t_str,x(7,:))
+
+  xlabel('Time(s)')
+  ylabel('Frequency(Hz)')

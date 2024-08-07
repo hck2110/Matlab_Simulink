@@ -1,0 +1,9 @@
+clc;
+clear all;
+A=[0,1,0;0,0,1;-2,-3,-4]; 
+delta_bar=3.4; D=[0;0;delta_bar];E=[0,0,1];
+eps=1e3;
+Q=eye(3);
+B=-(1/eps)*D*D';C=Q+eps*E'*E
+X = are(A,B,C);
+eig(X)'

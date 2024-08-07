@@ -1,0 +1,11 @@
+s=tf('s')
+G1=2/(s^2+s)
+bode(G1)
+%figure
+G2=(0.0005*s+0.5)/(0.005*s+1)
+bode(G1)
+%figure
+bode(G1*G2)
+margin(G1)
+[a b c d]=margin(G1)
+[a b c d]=margin(G1*G2)
